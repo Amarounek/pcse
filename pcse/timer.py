@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2014 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2014
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 from __future__ import print_function
 import datetime
 
-from .pydispatch import dispatcher
+from .base import dispatcher
 from .base import AncillaryObject, VariableKiosk
 from .traitlets import HasTraits, Instance, Bool, Int, Enum
 from . import signals

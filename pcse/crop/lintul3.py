@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2015 Alterra, Wageningen-UR
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
 # Wim de Winter(Wim.deWinter@wur.nl), April 2015
 """
 LINTUL3
@@ -12,7 +12,7 @@ from ..traitlets import Float, Instance, Bool
 from ..decorators import prepare_rates, prepare_states
 from ..util import limit, AfgenTrait
 from ..crop.phenology import DVS_Phenology as Phenology
-from ..exceptions import CarbonBalanceError, NitrogenBalanceError
+from ..exceptions import CarbonBalanceError, NutrientBalanceError
 from .. import signals
 
 # some lambdas to make unit conversion explicit.
@@ -22,190 +22,184 @@ m2mm = lambda x: x*1000
 
 class Lintul3(SimulationObject):
     """
-        * ORIGINAL COPYRGIGHT NOTICE:    
-        *-------------------------------------------------------------------------*
-        * Copyright 2013. Wageningen University, Plant Production Systems group,  *
-        * P.O. Box 430, 6700 AK Wageningen, The Netherlands.                      *
-        * You may not use this work except in compliance with the Licence.        *
-        * You may obtain a copy of the Licence at:                                *
-        *                                                                         *
-        * http://models.pps.wur.nl/content/licence-agreement                      *
-        *                                                                         *
-        * Unless required by applicable law or agreed to in writing, software     *
-        * distributed under the Licence is distributed on an "AS IS" basis,       *
-        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.*
-        *-------------------------------------------------------------------------*
-        
-        LINTUL3 is a crop model that calculates biomass production based on intercepted photosynthetically
-        active radiation (PAR) and light use efficiency (LUE). It is an adapted version of LINTUL2 (that simulates
-        potential and water-limited crop growth), including nitrogen limitation. Nitrogen stress in the model is
-        defined through the nitrogen nutrition index (NNI): the ratio of actual nitrogen concentration and critical
-        nitrogen concentration in the plant. The effect of nitrogen stress on crop growth is tested in the model
-        either through a reduction in LUE or leaf area (LA) or a combination of these two and further evaluated
-        with independent datasets. However, water limitation is not considered in the present study as the
-        crop is paddy rice. This paper describes the model for the case of rice, test the hypotheses of N stress
-        on crop growth and details of model calibration and testing using independent data sets of nitrogen
-        treatments (with fertilizer rates of 0 - 400 kgNha-1) under varying environmental conditions in Asia.
-        Results of calibration and testing are compared graphically, through Root Mean Square Deviation (RMSD),
-        and by Average Absolute Deviation (AAD). Overall average absolute deviation values for calibration and
-        testing of total aboveground biomass show less than 26% mean deviation from the observations though
-        the values for individual experiments show a higher deviation up to 41%. In general, the model responded
-        well to nitrogen stress in all the treatments without fertilizer application as observed, but between
-        fertilized treatments the response was varying.
-        
-        Nitrogen demand, uptake and stress 
-        
-        At sub-optimal nitrogen availability in the soil, nitrogen demand of the crop 
-        cannot be satisfied, which leads to sub-optimal crop nitrogen concentration. The 
-        crop nitrogen concentration below which a crop experiences nitrogen stress is 
-        called the critical nitrogen concentration. Nitrogen stress results in reduced 
-        rates of biomass production and eventually in reduced yields. Actual N content 
-        is the accumulated N above residual (which forms part of the cell structure). 
-        The critical N content is the one corresponding to half of the maximum. Nitrogen 
-        contents of these three reference points include those of leaves and stems, 
-        whereas roots are not considered since N contents of above-ground (green) parts 
-        are more important for photosynthesis, because of their chlorophyll content. 
-        However, calculation of N demand and N uptake also includes the belowground 
-        part. 
+    LINTUL3 is a crop model that calculates biomass production based on intercepted photosynthetically
+    active radiation (PAR) and light use efficiency (LUE). It is an adapted version of LINTUL2 (that simulates
+    potential and water-limited crop growth), including nitrogen limitation. Nitrogen stress in the model is
+    defined through the nitrogen nutrition index (NNI): the ratio of actual nitrogen concentration and critical
+    nitrogen concentration in the plant. The effect of nitrogen stress on crop growth is tested in the model
+    either through a reduction in LUE or leaf area (LA) or a combination of these two and further evaluated
+    with independent datasets. However, water limitation is not considered in the present study as the
+    crop is paddy rice. This paper describes the model for the case of rice, test the hypotheses of N stress
+    on crop growth and details of model calibration and testing using independent data sets of nitrogen
+    treatments (with fertilizer rates of 0 - 400 kgNha-1) under varying environmental conditions in Asia.
+    Results of calibration and testing are compared graphically, through Root Mean Square Deviation (RMSD),
+    and by Average Absolute Deviation (AAD). Overall average absolute deviation values for calibration and
+    testing of total aboveground biomass show less than 26% mean deviation from the observations though
+    the values for individual experiments show a higher deviation up to 41%. In general, the model responded
+    well to nitrogen stress in all the treatments without fertilizer application as observed, but between
+    fertilized treatments the response was varying.
 
-        See M.E. Shibu, P.A. Leffelaar, H. van Keulena, P.K. Aggarwal (2010). LINTUL3, 
-            a simulation model for nitrogen-limited situations: application to rice.
-            Eur. J. Agron. (2010) http://dx.doi.org/10.1016/j.eja.2010.01.003
-            
-            available from http://models.pps.wur.nl/sites/models.pps.wur.nl/files/LINTUL-N-Shibu-article.pdf
-        
-        
-        *parameters*
-        ======== =============================================== =======  ==========
-         Name     Description                                     Type     Unit
-        ======== =============================================== =======  ==========
-        DVSI     Initial development stage                                  -
-        DVSDR    Development stage above which deathOfLeaves of
-                 leaves and roots start                                     -
-        DVSNLT   Development stage after which no nutrients are absorbed    -
-        DVSNT    development stage above which N translocation to
-                 storage organs does occur                                  -
-        FNTRT    Nitrogen translocation from roots to storage 
-                 organs as a fraction of total amount of 
-                 nitrogen translocated from leaves and stem to 
-                 storage organs                                             -
-        FRNX     Critical N, as a fraction of maximum N 
-                 concentration                                              -
-        K        Light attenuation coefficient                              m²/m²
-        LAICR    critical LAI above which mutual shading of      
-                 leaves occurs,                                             °C/d
-        LRNR     Maximum N concentration of root as fraction of 
-                 that of leaves                                             g/g
-        LSNR     Maximum N concentration of stem as fraction of 
-                 that of leaves                                             g/g
-        LUE      Light use efficiency                                       g/MJ
-        NLAI     Coefficient for the effect of N stress on LAI 
-                 reduction(during juvenile phase)                           -
-        NLUE     Coefficient of reduction of LUE under nitrogen
-                 stress, epsilon                                            -
-        NMAXSO   Maximum concentration of nitrogen in storage
-                 organs                                                     g/g
-        NPART    Coefficient for the effect of N stress on leaf 
-                 biomass reduction                                          -
-        NSLA     Coefficient for the effect of N stress on SLA 
-                 reduction                                                  -
-        RDRNS    Relative death rate of leaf weight due to N 
-                 stress                                                     1/d
-        RDRRT    Relative death rate of roots                               1/d
-        RDRSHM   and the maximum dead rate of leaves due to 
-                 shading                                                    1/d
-        RGRL     Relative growth rate of LAI at the exponential 
-                 growth phase                                               °C/d
-        RNFLV    Residual N concentration in leaves                         g/g
-        RNFRT    Residual N concentration in roots                          g/g    
-        RNFST    Residual N concentration in stem                           g/g
-        ROOTDM   Maximum root depth                                         m
-        RRDMAX   Maximum rate of increase in rooting depth                  m/d
-        SLAC     Specific leaf area constant                                m²/g
-        TBASE    Base temperature for crop development                      °C
-        TCNT     Time coefficient for N translocation                       d    
-        TRANCO   Transpiration constant indicating the level of             
-                 drought tolerance of the wheat crop                        mm/d
-        TSUMAG   Temperature sum for ageing of leaves                       °C.d
-        WCFC     Water content at field capacity (0.03 MPa)                 m³/m³
-        WCST     Water content at full saturation                           m³/m³
-        WCWET    Critical Water content for oxygen stress                   m³/m³
-        WCWP     Water content at wilting point (1.5 MPa)                   m³/m³
-        WMFAC    water management (False = irrigated up to the 
-                 field capacity, true= irrigated up to saturation)          (bool)  
+    **Nitrogen demand, uptake and stress**
 
-        *function tables*
-        ======== =============================================== =======  ==========
-         Name     Description                                     Type     Unit
-        ======== =============================================== =======  ==========         
-        FLVTB    Partitioning coefficients
-        FRTTB    Partitioning coefficients
-        FSOTB    Partitioning coefficients
-        FSTTB    Partitioning coefficients
-        NMXLV    Maximum N concentration in the leaves, from 
-                 which the values of the stem and roots are derived,  
-                 as a  function of development stage
-        RDRT     Relative death rate of leaves as a function of
-                 Developmental stage                                        1/d
-        SLACF    Leaf area correction function as a function of 
-                 development stage, DVS. Reference: Drenth, H.,
-                 ten Berge, H.F.M. and Riethoven, J.J.M. 1994, 
-                 p.10. (Complete reference under Observed data.)
-        ======== =============================================== =======  ==========
+    At sub-optimal nitrogen availability in the soil, nitrogen demand of the crop
+    cannot be satisfied, which leads to sub-optimal crop nitrogen concentration. The
+    crop nitrogen concentration below which a crop experiences nitrogen stress is
+    called the critical nitrogen concentration. Nitrogen stress results in reduced
+    rates of biomass production and eventually in reduced yields. Actual N content
+    is the accumulated N above residual (which forms part of the cell structure).
+    The critical N content is the one corresponding to half of the maximum. Nitrogen
+    contents of these three reference points include those of leaves and stems,
+    whereas roots are not considered since N contents of above-ground (green) parts
+    are more important for photosynthesis, because of their chlorophyll content.
+    However, calculation of N demand and N uptake also includes the belowground
+    part.
 
-        
-        * initial states *
-        ======== =============================================== =======  ==========
-         Name     Description                                     Type     Unit
-        ======== =============================================== =======  ==========
-        ROOTDI   Initial rooting depth                                      m
-        NFRLVI   Initial fraction of N in leaves                            gN/gDM
-        NFRRTI   Initial fraction of N in roots                             gN/gDM
-        NFRSTI   Initial fraction of N in stem                              gN/gDM    
-        WCI      Initial water content in soil                              m³/³
-        WLVGI    Initial Weight of green leaves                             g/m²
-        WSTI     Initial Weight of stem                                     g/m²
-        WRTLI    Initial Weight of roots                                    g/m²
-        WSOI     Initial Weight of storage organs                           g/m²
-        ======== =============================================== =======  ==========
+    See:
+    M.E. Shibu, P.A. Leffelaar, H. van Keulena, P.K. Aggarwal (2010). LINTUL3,
+    a simulation model for nitrogen-limited situations: application to rice.
+    Eur. J. Agron. (2010) http://dx.doi.org/10.1016/j.eja.2010.01.003
 
-        
-        **State variables:**
-        =========== ================================================= ==== ===============
-         Name        Description                                      Pbl      Unit
-        =========== ================================================= ==== ===============
-        ANLV        Actual N content in leaves
-        ANRT        Actual N content in root
-        ANSO        Actual N content in storage organs
-        ANST        Actual N content in stem 
-        CUMPAR      PAR accumulator
-        LAI         leaf area index                                    *        m²/m²
-        NLOSSL      total N loss by leaves
-        NLOSSR      total N loss by roots
-        NUPTT       Total uptake of N over time                                 gN/m²
-        ROOTD       Rooting depth                                      *        m
-        TNSOIL      Amount of inorganic N available for crop uptake
-        WDRT        dead roots (?)                                              g/m²
-        WLVD        Weight of dead leaves                                       g/m²
-        WLVG        Weight of green leaves                                      g/m²
-        WRT         Weight of roots                                             g/m²
-        WSO         Weight of storage organs                                    g/m²
-        WST         Weight of stem                                              g/m²
-        TAGBM       Total aboveground biomass                                   g/m²
-        TGROWTH     Total biomass growth (above and below ground)               g/m²
-        =========== ================================================= ==== ===============
 
-        **Rate variables:**
-        =========== ================================================= ==== ===============
-         Name        Description                                      Pbl      Unit
-        =========== ================================================= ==== ===============
-         PEVAP       Potential soil evaporation rate                   Y     |mmday-1|
-         PTRAN       Potential crop transpiration rate                 Y     |mmday-1|
-         TRAN        Actual crop transpiration rate                    N     |mmday-1|
-         TRANRF      Transpiration reduction factor calculated         N     -
-         RROOTD      Rate of root growth                               Y     |mday-1|
-        =========== ================================================= ==== ===============
-        """
+    *Parameters*
+
+    ======== =======================================================  ==========
+     Name     Description                                              Unit
+    ======== =======================================================  ==========
+    DVSI     Initial development stage                                  -
+    DVSDR    Development stage above which deathOfLeaves of
+             leaves and roots start                                     -
+    DVSNLT   Development stage after which no nutrients are absorbed    -
+    DVSNT    development stage above which N translocation to
+             storage organs does occur                                  -
+    FNTRT    Nitrogen translocation from roots to storage
+             organs as a fraction of total amount of
+             nitrogen translocated from leaves and stem to
+             storage organs                                             -
+    FRNX     Critical N, as a fraction of maximum N
+             concentration                                              -
+    K        Light attenuation coefficient                              m²/m²
+    LAICR    critical LAI above which mutual shading of
+             leaves occurs,                                             °C/d
+    LRNR     Maximum N concentration of root as fraction of
+             that of leaves                                             g/g
+    LSNR     Maximum N concentration of stem as fraction of
+             that of leaves                                             g/g
+    LUE      Light use efficiency                                       g/MJ
+    NLAI     Coefficient for the effect of N stress on LAI
+             reduction(during juvenile phase)                           -
+    NLUE     Coefficient of reduction of LUE under nitrogen
+             stress, epsilon                                            -
+    NMAXSO   Maximum concentration of nitrogen in storage
+             organs                                                     g/g
+    NPART    Coefficient for the effect of N stress on leaf
+             biomass reduction                                          -
+    NSLA     Coefficient for the effect of N stress on SLA
+             reduction                                                  -
+    RDRNS    Relative death rate of leaf weight due to N
+             stress                                                     1/d
+    RDRRT    Relative death rate of roots                               1/d
+    RDRSHM   and the maximum dead rate of leaves due to
+             shading                                                    1/d
+    RGRL     Relative growth rate of LAI at the exponential
+             growth phase                                               °C/d
+    RNFLV    Residual N concentration in leaves                         g/g
+    RNFRT    Residual N concentration in roots                          g/g
+    RNFST    Residual N concentration in stem                           g/g
+    ROOTDM   Maximum root depth                                         m
+    RRDMAX   Maximum rate of increase in rooting depth                  m/d
+    SLAC     Specific leaf area constant                                m²/g
+    TBASE    Base temperature for crop development                      °C
+    TCNT     Time coefficient for N translocation                       d
+    TRANCO   Transpiration constant indicating the level of
+             drought tolerance of the wheat crop                        mm/d
+    TSUMAG   Temperature sum for ageing of leaves                       °C.d
+    WCFC     Water content at field capacity (0.03 MPa)                 m³/m³
+    WCST     Water content at full saturation                           m³/m³
+    WCWET    Critical Water content for oxygen stress                   m³/m³
+    WCWP     Water content at wilting point (1.5 MPa)                   m³/m³
+    WMFAC    water management (False = irrigated up to the
+             field capacity, true= irrigated up to saturation)          (bool)
+    RNSOIL   Daily amount of N available in the soil through
+             mineralisation of organic matter
+    ======== =======================================================  ==========
+
+
+    *Tabular parameters*
+
+    ======== =======================================================  =======================
+     Name     Description                                              Unit
+    ======== =======================================================  =======================
+    FLVTB    Partitioning coefficients                                  -
+    FRTTB    Partitioning coefficients                                  -
+    FSOTB    Partitioning coefficients                                  -
+    FSTTB    Partitioning coefficients                                  -
+    NMXLV    Maximum N concentration in the leaves, from               kg N kg-1 dry biomass
+             which the values of the stem and roots are derived,
+             as a  function of development stage
+    RDRT     Relative death rate of leaves as a function of
+             Developmental stage                                        1/d
+    SLACF    Leaf area correction function as a function of             -
+             development stage, DVS. Reference: Drenth, H.,
+             ten Berge, H.F.M. and Riethoven, J.J.M. 1994,
+             p.10. (Complete reference under Observed data.)
+    ======== =======================================================  =======================
+
+
+    * initial states *
+
+    ======== =======================================================  ==========
+     Name     Description                                              Unit
+    ======== =======================================================  ==========
+    ROOTDI   Initial rooting depth                                      m
+    NFRLVI   Initial fraction of N in leaves                            gN/gDM
+    NFRRTI   Initial fraction of N in roots                             gN/gDM
+    NFRSTI   Initial fraction of N in stem                              gN/gDM
+    WCI      Initial water content in soil                              m³/³
+    WLVGI    Initial Weight of green leaves                             g/m²
+    WSTI     Initial Weight of stem                                     g/m²
+    WRTLI    Initial Weight of roots                                    g/m²
+    WSOI     Initial Weight of storage organs                           g/m²
+    ======== =======================================================  ==========
+
+
+    **State variables:**
+
+    =========== ================================================= ==== ===============
+     Name        Description                                      Pbl      Unit
+    =========== ================================================= ==== ===============
+    ANLV        Actual N content in leaves
+    ANRT        Actual N content in root
+    ANSO        Actual N content in storage organs
+    ANST        Actual N content in stem
+    CUMPAR      PAR accumulator
+    LAI         leaf area index                                    *        m²/m²
+    NLOSSL      total N loss by leaves
+    NLOSSR      total N loss by roots
+    NUPTT       Total uptake of N over time                                 gN/m²
+    ROOTD       Rooting depth                                      *        m
+    TNSOIL      Amount of inorganic N available for crop uptake
+    WDRT        dead roots (?)                                              g/m²
+    WLVD        Weight of dead leaves                                       g/m²
+    WLVG        Weight of green leaves                                      g/m²
+    WRT         Weight of roots                                             g/m²
+    WSO         Weight of storage organs                                    g/m²
+    WST         Weight of stem                                              g/m²
+    TAGBM       Total aboveground biomass                                   g/m²
+    TGROWTH     Total biomass growth (above and below ground)               g/m²
+    =========== ================================================= ==== ===============
+
+    **Rate variables:**
+
+    =========== ================================================= ==== ===============
+     Name        Description                                      Pbl      Unit
+    =========== ================================================= ==== ===============
+     PEVAP       Potential soil evaporation rate                   Y     |mmday-1|
+     PTRAN       Potential crop transpiration rate                 Y     |mmday-1|
+     TRAN        Actual crop transpiration rate                    N     |mmday-1|
+     TRANRF      Transpiration reduction factor calculated         N     -
+     RROOTD      Rate of root growth                               Y     |mday-1|
+    =========== ================================================= ==== ===============
+    """
 
 
     # sub-model components for crop simulation
@@ -276,6 +270,8 @@ class Lintul3(SimulationObject):
         WSTI   = Float(-99)   # Initial weight of stems
         WRTLI  = Float(-99)   # Initial weight of roots
         WSOI   = Float(-99)   # Initial weight of storage organs
+
+        RNMIN = Float(-99)    # Rate of soil mineratilation (g N/m2/day
         
     class Lintul3States(StateVariables):
         LAI = Float(-99.) # leaf area index
@@ -518,7 +514,7 @@ class Lintul3(SimulationObject):
         SLA = p.SLAC * p.SLACF(DVS) * exp(-p.NSLA * (1.-NNI))
 
         # Growth reduction function for water stress(actual trans/potential)
-        r.TRANRF = r.TRAN / r.PTRAN
+        r.TRANRF = r.TRAN / r.PTRAN if (r.PTRAN != 0) else 1
 
         # relative modification for root and shoot allocation.
         FRT, FLV, FST, FSO = self.dryMatterPartitioningFractions(p.NPART, r.TRANRF, NNI, FRTWET, FLVT, FSTT, FSOT)
@@ -644,12 +640,9 @@ class Lintul3(SimulationObject):
         and the N demand from the crop.
         """
 
-        #  Soil N supply (g N m-2 d-1) through mineralization.
-        RTMIN = 0.10 * NLIMIT
-
         #  Change in inorganic N in soil as function of fertilizer
         #  input, soil N mineralization and crop uptake.
-        RNSOIL = self.FERTNS/DELT -NUPTR + RTMIN
+        RNSOIL = self.FERTNS/DELT - NUPTR + p.RNMIN
         self.FERTNS = 0.0
 
         # # Total leaf weight.
@@ -682,7 +675,7 @@ class Lintul3(SimulationObject):
         s.rTNSOIL = RNSOIL
 
         if abs(NBALAN) > 0.0001:
-            raise NitrogenBalanceError("Nitrogen un-balance in crop model at day %s" % day)
+            raise NutrientBalanceError("Nitrogen un-balance in crop model at day %s" % day)
         
         if abs(CBALAN) > 0.0001:
             raise CarbonBalanceError("Carbon un-balance in crop model at day %s" % day)
@@ -707,8 +700,7 @@ class Lintul3(SimulationObject):
         s.TAGBM = s.WLVG + s.WLVD + s.WST + s.WSO
 
     def _calc_potential_evapotranspiration(self, drv):
-        """
-        Potential evaporation and transpiration.
+        """Compute the potential evaporation and transpiration.
         """
         ES0 = cm2mm(drv.ES0)
         ET0 = cm2mm(drv.ET0)
@@ -719,9 +711,7 @@ class Lintul3(SimulationObject):
         return pevap, ptran
 
     def _calc_actual_transpiration(self, PTRAN, WC):
-        """
-        compute actual rates of evaporation and transpiration.
-        Obsolete subroutine name: EVAPTR                  
+        """Compute the actual rates of evaporation and transpiration.
         """
         p = self.params
                 
@@ -753,7 +743,8 @@ class Lintul3(SimulationObject):
         return PTRAN * FR
 
     def _growth_leaf_area(self, DTEFF, LAII,  DELT, SLA, GLV, WC, DVS, TRANRF, NNI):
-        """This subroutine computes daily increase of leaf area index."""
+        """This subroutine computes daily increase of leaf area index.
+        """
 
         p = self.params
         LAI = self.states.LAI
@@ -772,12 +763,12 @@ class Lintul3(SimulationObject):
         return GLAI
 
     def dryMatterPartitioningFractions(self, NPART, TRANRF, NNI, FRTWET, FLVT, FSTT, FSOT):
+        """ Computes the Dry matter partitioning fractions: leaves, stem and storage organs.
         """
-        Purpose: Dry matter partitioning fractions: leaves, stem and storage organs.
-        Obsolete subroutine name: SUBPAR                  
-        """
-      
-        if(TRANRF  <  NNI):
+
+        p = self.params
+        NRF = exp(-p.NLUE * (1.0 - NNI))
+        if(TRANRF  <  NRF):
             #  Water stress is more severe as compared to nitrogen stress and
             #  partitioning will follow the original assumptions of LINTUL2*
             FRTMOD = max(1., 1./(TRANRF+0.5))
@@ -799,42 +790,46 @@ class Lintul3(SimulationObject):
         return FRT, FLV, FST, FSO # FLVMOD removed from signature - WdW
     
     def totalGrowthRate(self, DTR, TRANRF, NNI):
-        """
-        compute the total totalGrowthRate rate.
-        (Monteith, 1977; Gallagher and Biscoe, 1978; Monteith, 1990) have
+        """Compute the total total Growth Rate.
+
+        Monteith, (1977), Gallagher and Biscoe, (1978) and Monteith (1990) have
         shown that biomass formed per unit intercepted light, LUE (Light
-        Use Efficiency, g dry matter MJ-1), is relatively more stable. Hence,
+        Use Efficiency, g dry matter MJ-1), is relatively stable. Hence,
         maximum daily growth rate can be defined as the product of
-        intercepted PAR (photosynthetically active radiation, MJm-2 d-1)
-        and LUE. Intercepted PAR depends on incident solar radiation,
+        intercepted PAR (photosynthetically active radiation, |MJm-2d-1|)
+        and LUE.
+
+        Intercepted PAR depends on incident solar radiation,
         the fraction that is photosynthetically active (0.5) (Monteith and
-        Unsworth, 1990; Spitters, 1990), and LAI (m2 leafm-2 soil) according
-        to Lambert�Beer�s law:
-        Q = 0.5Q0[1 - e(-k LAI)] 
-        where Q is intercepted PAR(MJm-2 d-1), Q0 is daily global radiation
-        (MJm-2 d-1), and k is the attenuation coefficient for PAR in the
+        Unsworth, 1990; Spitters, 1990), and LAI (|m2| leaf |m-2| soil) according
+        to Lambert Beer's law:
+
+        :math:`Q = 0.5 Q0 (1 - e^{-k LAI})`
+
+        where *Q* is intercepted PAR |MJm-2d-1|, *Q0* is daily global radiation
+        |MJm-2d-1|, and *k* is the attenuation coefficient for PAR in the
         canopy.
-        Obsolete subroutine name: GROWTH 
         """
+        
         p = self.params
         PARINT = 0.5 * DTR * (1.- exp(-p.K * self.states.LAI))
         RGROWTH = p.LUE * PARINT
-        
-        if(TRANRF  <=  NNI):
+        NRF = exp(-p.NLUE * (1.0 - NNI))
+        GRF = 1.0
+        if(TRANRF  <=  NRF):
             #  Water stress is more severe as compared to nitrogen stress and
             #  partitioning will follow the original assumptions of LINTUL2*
-            RGROWTH *= TRANRF
+            GRF = TRANRF
         else:
             #  Nitrogen stress is more severe as compared to water stress and the
             #  less partitioning to leaves will go to the roots*
-            RGROWTH *= exp(-p.NLUE * (1.0 - NNI))
+            GRF = NRF
+        RGROWTH *= GRF
         return RGROWTH
 
     def relativeGrowthRates(self, RGROWTH, FLV, FRT, FST, FSO, DLV, DRRT):
-        """
-        compute the relative totalGrowthRate rate of roots, leaves, stem 
+        """Compute the relative total Growth Rate rate of roots, leaves, stem
         and storage organs.
-        Obsolete subroutine name: RELGR                   
         """
       
         RWLVG = RGROWTH * FLV - DLV
@@ -845,10 +840,8 @@ class Lintul3(SimulationObject):
         return RWLVG, RWRT, RWST, RWSO
 
     def N_uptakeRates(self, NDEML, NDEMS, NDEMR, NUPTR, NDEMTO):
-        """
-        compute the partitioning of the total N uptake rate (NUPTR) 
+        """Compute the partitioning of the total N uptake rate (NUPTR)
         over the leaves, stem, and roots.
-        Obsolete subroutine name: RNUSUB                                      
         """
       
         if (NDEMTO > 0):
@@ -861,9 +854,7 @@ class Lintul3(SimulationObject):
             return 0.0, 0.0, 0.0
 
     def translocatable_N(self):      
-        """
-        compute the translocatable N in the organs.
-        Obsolete subroutine name: NTRLOC                                                   
+        """Compute the translocatable N in the organs.
         """
         s = self.states
         p = self.params
@@ -875,10 +866,7 @@ class Lintul3(SimulationObject):
         return ATNLV, ATNST, ATNRT, ATN
 
     def deathRateOfLeaves(self, TSUM, RDRTMP, NNI, SLA):
-        """
-        compute the relative deathOfLeaves rate of leaves due to age, 
-        shading amd due to nitrogen stress.                        
-        Obsolete subroutine name: DEATHL                 
+        """Compute the relative death rate of leaves due to age, shading amd due to nitrogen stress.
         """
       
         p = self.params

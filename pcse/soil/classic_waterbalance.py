@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2014 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2014
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 """Python implementations of the WOFOST waterbalance modules for simulation
 of potential production (`WaterbalancePP`) and water-limited production
 (`WaterbalanceFD`) under freely draining conditions.
 """
 from math import sqrt
 
-from ..traitlets import Float, Int, Instance, Enum, Unicode, Bool
+from ..traitlets import Float, Int, Instance, Enum, Unicode, Bool, List
 from ..decorators import prepare_rates, prepare_states
 from ..util import limit, Afgen, merge_dict
 from ..base import ParamTemplate, StatesTemplate, RatesTemplate, \
@@ -139,7 +139,6 @@ class WaterbalanceFD(SimulationObject):
     CRAIRC    Soil critical air content (waterlogging)         SSo     -
     SOPE      maximum percolation rate root zone               SSo    |cmday-1|
     KSUB      maximum percolation rate subsoil                 SSo    |cmday-1|
-    K0        hydraulic conductivity of saturated soil         SSo    |cmday-1|
     RDMSOL    Soil rootable depth                              SSo     cm
     IFUNRN    Indicates whether non-infiltrating fraction of   SSi    -
               rain is a function of storm size (1)
@@ -259,6 +258,8 @@ class WaterbalanceFD(SimulationObject):
     _RIRR = Float(0.)
     # default depth of upper layer (root zone depth)
     DEFAULT_RD = Float(10.)
+    # Increments on WLOW due to state updates
+    _increments_W = List()
 
     class Parameters(ParamTemplate):
         # Soil parameters
@@ -268,7 +269,6 @@ class WaterbalanceFD(SimulationObject):
         CRAIRC = Float(-99.)
         SOPE   = Float(-99.)
         KSUB   = Float(-99.)
-        K0     = Float(-99.)
         RDMSOL = Float(-99.)
         # Site parameters
         IFUNRN = Float(-99.)
@@ -381,6 +381,8 @@ class WaterbalanceFD(SimulationObject):
         # signal for irrigation
         self._connect_signal(self._on_IRRIGATE, signals.irrigate)
 
+        self._increments_W = []
+
     @prepare_rates
     def calc_rates(self, day, drv):
         s = self.states
@@ -439,7 +441,7 @@ class WaterbalanceFD(SimulationObject):
         RINPRE = RINPRE + r.RIRR + s.SS
         if s.SS > 0.1:
             # with surface storage, infiltration limited by SOPE
-            AVAIL = RINPRE + r.RIRR - r.EVW
+            AVAIL = RINPRE - r.EVW
             RINPRE = min(p.SOPE, AVAIL)
             
         RD = self._determine_rooting_depth()
@@ -552,9 +554,10 @@ class WaterbalanceFD(SimulationObject):
 
         # Checksums waterbalance for systems without groundwater
         # for rootzone (WBALRT) and whole system (WBALTT)
-        s.WBALRT = s.TOTINF + s.WI + s.WDRT - s.EVST - s.WTRAT - s.PERCT - s.W
-        s.WBALTT = (s.SSI + s.RAINT + s.TOTIRR + s.WI - s.W + s.WLOWI -
-                    s.WLOW - s.WTRAT - s.EVWT - s.EVST - s.TSR - s.LOSST - s.SS)
+        # The sum of all increments made are added to ensure a closing waterbalance
+        s.WBALRT = s.TOTINF + s.WI + s.WDRT - s.EVST - s.WTRAT - s.PERCT - s.W + sum(self._increments_W)
+        s.WBALTT = (s.SSI + s.RAINT + s.TOTIRR + s.WI - s.W + sum(self._increments_W) +
+                    s.WLOWI - s.WLOW - s.WTRAT - s.EVWT - s.EVST - s.TSR - s.LOSST - s.SS)
 
         if abs(s.WBALRT) > 0.0001:
             msg = "Water balance for root zone does not close."
@@ -610,7 +613,7 @@ class WaterbalanceFD(SimulationObject):
             # move water from previously rooted zone and add to new unrooted zone
             WDR = s.W * RDchange/self.RDold
 
-        if WDR != 0.:
+        if abs(WDR) > 0.:
             # reduce amount of water in subsoil
             s.WLOW -= WDR
             # increase amount of water in root zone
@@ -628,6 +631,35 @@ class WaterbalanceFD(SimulationObject):
 
     def _on_IRRIGATE(self, amount, efficiency):
         self._RIRR = amount * efficiency
+
+    def _set_variable_SM(self, nSM):
+        """Force the model states based on the given soil moisture value.
+
+        This implies that besides the root-zone soil content, also the
+        water available in the root zone (W) must be updated since SM
+        is derived from W.
+
+        Further, the increment made to W is added to self._increments_W
+        in order to ensure that the water balance still closes.
+        """
+        s = self.states
+
+        # old values
+        oSM = s.SM
+        oW = s.W
+        # new values
+        nW = nSM/oSM * s.W
+
+        # update states
+        s.W = nW
+        s.SM = nSM
+        s.WWLOW = s.WLOW + s.W
+
+        # Store increments on W
+        self._increments_W.append(nW - oW)
+
+        # Return increments on all variables
+        return {"W": nW - oW, "SM": nSM - oSM}
 
 
 class WaterbalanceFDSnow(SimulationObject):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2014 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2014
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 """Settings for PCSE
 
 Default values will be read from the files 'pcse/settings/default_settings.py'
@@ -13,15 +13,15 @@ from pcse.settings.settings
 For example, to use the settings in a module under 'crop':
 
     from ..settings import settings
-    print settings.METEO_CACHE_DIR
+    print(settings.METEO_CACHE_DIR)
 
 Settings that are not ALL-CAPS will generate a warning. To avoid warnings
 for everything that is not a setting (such as imported modules), prepend
-and underscore to the name.
+an underscore to the name.
 """
 
 import os as _os
-from .. import util as _util
+import pcse.util as _util
 
 PCSE_USER_HOME =  _os.path.join(_util.get_user_home(), ".pcse")
 

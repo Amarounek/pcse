@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2018 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2018
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl) and Herman Berghuijs, June 2024
 """
 The Python Crop Simulation Environment (PCSE) has been developed
 to facilitate implementing crop simulation models that were 
@@ -17,8 +17,7 @@ in a PCSE model. Moreover PCSE provides support for reusing
 input files and weather files that are used by FST models.
 
 PCSE currently provides an implementation of the WOFOST and LINTUL crop
-simulation models and variants of WOFOST with extended
-capabilities.
+simulation models and the LINGRA grassland simulation model.
 
 See Also
 --------
@@ -30,7 +29,8 @@ from __future__ import print_function
 __author__ = "Allard de Wit <allard.dewit@wur.nl>"
 __license__ = "European Union Public License"
 __stable__ = True
-__version__ = "5.4.2"
+__version__ = "6.0.12"
+
 
 import sys, os
 from . import util
@@ -72,8 +72,7 @@ import logging.config
 from .settings import settings
 logging.config.dictConfig(settings.LOG_CONFIG)
 
-from . import db
-from . import fileinput
+from . import input
 from . import tests
 from . import agromanager
 from . import soil
@@ -85,7 +84,7 @@ pcse_db_file = os.path.join(settings.PCSE_USER_HOME, "pcse.db")
 if not os.path.exists(pcse_db_file):
     print("Building PCSE demo database at: %s ..." % pcse_db_file, end=" ")
     pcse_home = os.path.dirname(__file__)
-    pcse_db_dump_file = os.path.join(pcse_home, "db", "pcse", "pcse_dump.sql")
+    pcse_db_dump_file = os.path.join(pcse_home, "tests", "test_data", "pcse_dump.sql")
     try:
         util.load_SQLite_dump_file(pcse_db_dump_file, pcse_db_file)
         print("OK")
@@ -93,8 +92,8 @@ if not os.path.exists(pcse_db_file):
         logger = logging.getLogger()
         msg1 = "Failed to create the PCSE demo database: %s" % e
         msg2 = "PCSE will likely be functional, but some tests and demos may fail."
-        logger.warn(msg1)
-        logger.warn(msg2)
+        logger.warning(msg1)
+        logger.warning(msg2)
 
 if not __stable__:
     print("Warning: You are running a PCSE development version:  %s" % __version__)

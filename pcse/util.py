@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2016 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), October 2016
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 """Miscellaneous utilities for PCSE
 """
 import os, sys
@@ -12,10 +12,13 @@ import logging
 from math import log10, cos, sin, asin, sqrt, exp, pi, radians
 from collections import namedtuple
 from bisect import bisect_left
-import textwrap
 import sqlite3
-from collections import Iterable
+if sys.version_info > (3,8):
+    from collections.abc import Iterable
+else:
+    from collections import Iterable
 
+import dotmap
 from . import exceptions as exc
 from .traitlets import TraitType
 
@@ -24,6 +27,10 @@ hPa2kPa = lambda x: x/10.
 
 # Saturated Vapour pressure [kPa] at temperature temp [C]
 SatVapourPressure = lambda temp: 0.6108 * exp((17.27 * temp) / (237.3 + temp))
+
+# Named tuple for returning results of ASTRO
+astro_nt = namedtuple("AstroResults", "DAYL, DAYLP, SINLD, COSLD, DIFPP, "
+                                      "ATMTR, DSINBE, ANGOT")
 
 
 def reference_ET(DAY, LAT, ELEV, TMIN, TMAX, IRRAD, VAP, WIND,
@@ -43,8 +50,8 @@ def reference_ET(DAY, LAT, ELEV, TMIN, TMAX, IRRAD, VAP, WIND,
         TMIN    -  Minimum temperature                              C
         TMAX    -  Maximum temperature                              C
         IRRAD   -  Daily shortwave radiation                     J m-2 d-1
-        VAP     -  24 hour average vapour pressure                 hPa
-        WIND    -  24 hour average windspeed at 2 meter            m/s
+        VAP     -  24-hour average vapour pressure                 hPa
+        WIND    -  24-hour average windspeed at 2 meter            m/s
         ANGSTA  -  Empirical constant in Angstrom formula           -
         ANGSTB  -  Empirical constant in Angstrom formula           -
         ETMODEL -  Indicates if the canopy reference ET should     PM|P
@@ -60,7 +67,7 @@ def reference_ET(DAY, LAT, ELEV, TMIN, TMAX, IRRAD, VAP, WIND,
         ET0     -  Penman or Penman-Monteith potential evapotranspiration from a
                    crop canopy [mm/d]
 
-.. note:: The Penman-Monteith algorithm is valid only for a reference canopy and
+.. note:: The Penman-Monteith algorithm is valid only for a reference canopy, and
     therefore it is not used to calculate the reference values for bare soil and
     open water (ES0, E0).
 
@@ -112,7 +119,7 @@ def reference_ET(DAY, LAT, ELEV, TMIN, TMAX, IRRAD, VAP, WIND,
 
 def penman(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2, ANGSTA, ANGSTB):
     """Calculates E0, ES0, ET0 based on the Penman model.
-    
+
      This routine calculates the potential evapo(transpi)ration rates from
      a free water surface (E0), a bare soil surface (ES0), and a crop canopy
      (ET0) in mm/d. For these calculations the analysis by Penman is followed
@@ -120,20 +127,20 @@ def penman(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2, ANGSTA, ANGSTB):
      Subroutines and functions called: ASTRO, LIMIT.
 
     Input variables::
-    
+
         DAY     -  Python datetime.date object                                    -
-        LAT     -  Latitude of the site                        degrees   
-        ELEV    -  Elevation above sea level                      m      
+        LAT     -  Latitude of the site                        degrees
+        ELEV    -  Elevation above sea level                      m
         TMIN    -  Minimum temperature                            C
-        TMAX    -  Maximum temperature                            C      
-        AVRAD   -  Daily shortwave radiation                   J m-2 d-1 
-        VAP     -  24 hour average vapour pressure               hPa     
-        WIND2   -  24 hour average windspeed at 2 meter          m/s     
+        TMAX    -  Maximum temperature                            C
+        AVRAD   -  Daily shortwave radiation                   J m-2 d-1
+        VAP     -  24-hour average vapour pressure               hPa
+        WIND2   -  24-hour average windspeed at 2 meter          m/s
         ANGSTA  -  Empirical constant in Angstrom formula         -
         ANGSTB  -  Empirical constant in Angstrom formula         -
 
     Output is a tuple (E0,ES0,ET0)::
-    
+
         E0      -  Penman potential evaporation from a free water surface [mm/d]
         ES0     -  Penman potential evaporation from a moist bare soil surface [mm/d]
         ET0     -  Penman potential transpiration from a crop canopy [mm/d]
@@ -159,7 +166,7 @@ def penman(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2, ANGSTA, ANGSTB):
     GAMMA = PSYCON*PBAR/1013.
 
     # saturated vapour pressure according to equation of Goudriaan
-    # (1977) derivative of SVAP with respect to temperature, i.e. 
+    # (1977) derivative of SVAP with respect to temperature, i.e.
     # slope of the SVAP-temperature curve (mbar/Celsius);
     # measured vapour pressure not to exceed saturated vapour pressure
 
@@ -191,14 +198,14 @@ def penman(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2, ANGSTA, ANGSTB):
 
     # Penman formula (1948)
     E0  = (DELTA*RNW+GAMMA*EA)/(DELTA+GAMMA)
-    ES0 = (DELTA*RNS+GAMMA*EA)/(DELTA+GAMMA) 
+    ES0 = (DELTA*RNS+GAMMA*EA)/(DELTA+GAMMA)
     ET0 = (DELTA*RNC+GAMMA*EAC)/(DELTA+GAMMA)
 
     # Ensure reference evaporation >= 0.
     E0  = max(0., E0)
     ES0 = max(0., ES0)
     ET0 = max(0., ET0)
-    
+
     return E0, ES0, ET0
 
 
@@ -219,8 +226,8 @@ def penman_monteith(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2):
         TMIN  - Minimum temperature                            C
         TMAX  - Maximum temperature                            C
         AVRAD - Daily shortwave radiation                   J m-2 d-1
-        VAP   - 24 hour average vapour pressure               hPa
-        WIND2 - 24 hour average windspeed at 2 meter          m/s
+        VAP   - 24-hour average vapour pressure               hPa
+        WIND2 - 24-hour average windspeed at 2 meter          m/s
 
     Output is:
 
@@ -301,7 +308,7 @@ def penman_monteith(DAY, LAT, ELEV, TMIN, TMAX, AVRAD, VAP, WIND2):
 
 def check_angstromAB(xA, xB):
     """Routine checks validity of Angstrom coefficients.
-    
+
     This is the  python version of the FORTRAN routine 'WSCAB' in 'weather.for'.
     """
     MIN_A = 0.1
@@ -353,7 +360,7 @@ def ea_from_tdew(tdew):
     tdew - dewpoint temperature [deg C]
     """
     # Raise exception:
-    if (tdew < -95.0 or tdew > 65.0):
+    if tdew < -95.0 or tdew > 65.0:
         # Are these reasonable bounds?
         msg = 'tdew=%g is not in range -95 to +60 deg C' % tdew
         raise ValueError(msg)
@@ -380,22 +387,22 @@ def vap_from_relhum(rh, temp):
 
 def angstrom(day, latitude, ssd, cA, cB):
     """Compute global radiation using the Angstrom equation.
-    
+
     Global radiation is derived from sunshine duration using the Angstrom
     equation:
     globrad = Angot * (cA + cB * (sunshine / daylength)
-    
+
     :param day: day of observation (date object)
     :param latitude: Latitude of the observation
     :param ssd: Observed sunshine duration
     :param cA: Angstrom A parameter
-    :param cB: Angstrom B parameter    
+    :param cB: Angstrom B parameter
     :returns: the global radiation in J/m2/day
     """
     r = astro(day, latitude, 0)
     globrad = r.ANGOT * (cA + cB * (ssd / r.DAYL))
     return globrad
-                       
+
 
 def doy(day):
     """Converts a date or datetime object to day-of-year (Jan 1st = doy 1)
@@ -408,19 +415,19 @@ def doy(day):
         raise RuntimeError(msg)
 
 
-def limit(min, max, v):
+def limit(vmin, vmax, v):
     """limits the range of v between min and max
     """
 
-    if min > max:
-        raise RuntimeError("Min value (%f) larger than max (%f)" % (min, max))
-    
-    if v < min:       # V below range: return min
-        return min
-    elif v < max:     # v within range: return v
+    if vmin > vmax:
+        raise RuntimeError("Min value (%f) larger than max (%f)" % (vmin, vmax))
+
+    if v < vmin:       # V below range: return min
+        return vmin
+    elif v < vmax:     # v within range: return v
         return v
     else:             # v above range: return max
-        return max
+        return vmax
 
 
 def daylength(day, latitude, angle=-4, _cache={}):
@@ -430,7 +437,7 @@ def daylength(day, latitude, angle=-4, _cache={}):
     :param latitude:    latitude of location
     :param angle:       The photoperiodic daylength starts/ends when the sun
         is `angle` degrees under the horizon. Default is -4 degrees.
-    
+
     Derived from the WOFOST routine ASTRO.FOR and simplified to include only
     daylength calculation. Results are being cached for performance
     """
@@ -440,10 +447,10 @@ def daylength(day, latitude, angle=-4, _cache={}):
     if abs(latitude) > 90.:
         msg = "Latitude not between -90 and 90"
         raise RuntimeError(msg)
-    
+
     # Calculate day-of-year from date object day
     IDAY = doy(day)
-    
+
     # Test if daylength for given (day, latitude, angle) was already calculated
     # in a previous run. If not (e.g. KeyError) calculate the daylength, store
     # in cache and return the value.
@@ -451,7 +458,7 @@ def daylength(day, latitude, angle=-4, _cache={}):
         return _cache[(IDAY, latitude, angle)]
     except KeyError:
         pass
-    
+
     # constants
     RAD = radians(1.)
 
@@ -473,13 +480,13 @@ def daylength(day, latitude, angle=-4, _cache={}):
 
     # store results in cache
     _cache[(IDAY, latitude, angle)] = DAYLP
-    
+
     return DAYLP
 
 
 def astro(day, latitude, radiation, _cache={}):
     """python version of ASTRO routine by Daniel van Kraalingen.
-    
+
     This subroutine calculates astronomic daylength, diurnal radiation
     characteristics such as the atmospheric transmission, diffuse radiation etc.
 
@@ -489,19 +496,19 @@ def astro(day, latitude, radiation, _cache={}):
 
     output is a `namedtuple` in the following order and tags::
 
-        DAYL      Astronomical daylength (base = 0 degrees)     h      
-        DAYLP     Astronomical daylength (base =-4 degrees)     h      
-        SINLD     Seasonal offset of sine of solar height       -      
-        COSLD     Amplitude of sine of solar height             -      
+        DAYL      Astronomical daylength (base = 0 degrees)     h
+        DAYLP     Astronomical daylength (base =-4 degrees)     h
+        SINLD     Seasonal offset of sine of solar height       -
+        COSLD     Amplitude of sine of solar height             -
         DIFPP     Diffuse irradiation perpendicular to
-                  direction of light                         J m-2 s-1 
-        ATMTR     Daily atmospheric transmission                -      
+                  direction of light                         J m-2 s-1
+        ATMTR     Daily atmospheric transmission                -
         DSINBE    Daily total of effective solar height         s
         ANGOT     Angot radiation at top of atmosphere       J m-2 d-1
- 
+
     Authors: Daniel van Kraalingen
     Date   : April 1991
- 
+
     Python version
     Author      : Allard de Wit
     Date        : January 2011
@@ -512,10 +519,10 @@ def astro(day, latitude, radiation, _cache={}):
         msg = "Latitude not between -90 and 90"
         raise RuntimeError(msg)
     LAT = latitude
-        
+
     # Determine day-of-year (IDAY) from day
     IDAY = doy(day)
-    
+
     # reassign radiation
     AVRAD = radiation
 
@@ -542,7 +549,7 @@ def astro(day, latitude, radiation, _cache={}):
     AOB = SINLD/COSLD
 
     # For very high latitudes and days in summer and winter a limit is
-    # inserted to avoid math errors when daylength reaches 24 hours in 
+    # inserted to avoid math errors when daylength reaches 24 hours in
     # summer or 0 hours in winter.
 
     # Calculate solution for base=0 degrees
@@ -555,7 +562,7 @@ def astro(day, latitude, radiation, _cache={}):
     else:
         if AOB >  1.0: DAYL = 24.0
         if AOB < -1.0: DAYL = 0.0
-        # integrals of sine of solar height	
+        # integrals of sine of solar height
         DSINB = 3600.*(DAYL*SINLD)
         DSINBE = 3600.*(DAYL*(SINLD+0.4*(SINLD**2+COSLD**2*0.5)))
 
@@ -577,7 +584,7 @@ def astro(day, latitude, radiation, _cache={}):
         ATMTR = 0.
 
     # estimate fraction diffuse irradiation
-    if (ATMTR > 0.75):
+    if ATMTR > 0.75:
         FRDIF = 0.23
     elif (ATMTR <= 0.75) and (ATMTR > 0.35):
         FRDIF = 1.33-1.46*ATMTR
@@ -587,10 +594,7 @@ def astro(day, latitude, radiation, _cache={}):
         FRDIF = 1.
 
     DIFPP = FRDIF*ATMTR*0.5*SC
-    
-    # Pack return values in namedtuple, add to cache and return
-    astro_nt = namedtuple("AstroResults","DAYL, DAYLP, SINLD, COSLD, DIFPP, "
-                                         "ATMTR, DSINBE, ANGOT")
+
     retvalue = astro_nt(DAYL, DAYLP, SINLD, COSLD, DIFPP, ATMTR, DSINBE, ANGOT)
     _cache[(IDAY, LAT, AVRAD)] = retvalue
 
@@ -599,18 +603,15 @@ def astro(day, latitude, radiation, _cache={}):
 
 class Afgen(object):
     """Emulates the AFGEN function in WOFOST.
-    
+
     :param tbl_xy: List or array of XY value pairs describing the function
         the X values should be mononically increasing.
-    :param unit: The interpolated values is returned with given
-        `unit <http://pypi.python.org/pypi/Unum/4.1.0>`_ assigned,
-        defaults to None if Unum is not used.
-    
-    Returns the interpolated value provided with the 
+
+    Returns the interpolated value provided with the
     absicca value at which the interpolation should take place.
-    
+
     example::
-    
+
         >>> tbl_xy = [0,0,1,1,5,10]
         >>> f =  Afgen(tbl_xy)
         >>> f(0.5)
@@ -624,24 +625,23 @@ class Afgen(object):
         >>> f(-1)
         0.0
     """
-    
+
     def _check_x_ascending(self, tbl_xy):
         """Checks that the x values are strictly ascending.
-        
+
         Also truncates any trailing (0.,0.) pairs as a results of data coming
         from a CGMS database.
         """
         x_list = tbl_xy[0::2]
         y_list = tbl_xy[1::2]
         n = len(x_list)
-        
+
         # Check if x range is ascending continuously
         rng = list(range(1, n))
         x_asc = [True if (x_list[i] > x_list[i-1]) else False for i in rng]
-        
+
         # Check for breaks in the series where the ascending sequence stops.
         # Only 0 or 1 breaks are allowed. Use the XOR operator '^' here
-        n = len(x_asc)
         sum_break = sum([1 if (x0 ^ x1) else 0 for x0,x1 in zip(x_asc, x_asc[1:])])
         if sum_break == 0:
             x = x_list
@@ -657,12 +657,10 @@ class Afgen(object):
             msg = ("X values for AFGEN input list not strictly ascending: %s"
                    % x_list)
             raise ValueError(msg)
-        
-        return x, y            
 
-    def __init__(self, tbl_xy, unit=None):
-        
-        self.unit = unit
+        return x, y
+
+    def __init__(self, tbl_xy):
 
         x_list, y_list = self._check_x_ascending(tbl_xy)
         x_list = self.x_list = list(map(float, x_list))
@@ -679,10 +677,6 @@ class Afgen(object):
 
         i = bisect_left(self.x_list, x) - 1
         v = self.y_list[i] + self.slopes[i] * (x - self.x_list[i])
-
-        # if a unum unit is defined, multiply with a unit
-        if self.unit is not None:
-            v *= self.unit
 
         return v
 
@@ -702,15 +696,15 @@ class AfgenTrait(TraitType):
 
 def merge_dict(d1, d2, overwrite=False):
     """Merge contents of d1 and d2 and return the merged dictionary
-    
+
     Note:
-    
+
     * The dictionaries d1 and d2 are unaltered.
     * If `overwrite=False` (default), a `RuntimeError` will be raised when
       duplicate keys exist, else any existing keys in d1 are silently
-      overwritten by d2.  
+      overwritten by d2.
     """
-    # Note: May  partially be replaced by a ChainMap as of python 3.3 
+    # Note: May  partially be replaced by a ChainMap as of python 3.3
     if overwrite is False:
         sd1 = set(d1.keys())
         sd2 = set(d2.keys())
@@ -724,89 +718,6 @@ def merge_dict(d1, d2, overwrite=False):
     return td
 
 
-class ConfigurationLoader(object):
-    """Class for loading the model configuration from a PCSE configuration files
-
-        :param config: string given file name containing model configuration
-        """
-    _required_attr = ("CROP", "SOIL", "AGROMANAGEMENT", "OUTPUT_VARS", "OUTPUT_INTERVAL",
-                      "OUTPUT_INTERVAL_DAYS", "SUMMARY_OUTPUT_VARS")
-    defined_attr = []
-    model_config_file = None
-    description = None
-
-    def __init__(self, config):
-
-        if not isinstance(config, str):
-            msg = ("Keyword 'config' should provide the name of the file " +
-                   "storing the configuration of the model PCSE should run.")
-            raise exc.PCSEError(msg)
-
-        # check if model configuration file is an absolute or relative path. If
-        # not assume that it is located in the 'conf/' folder in the PCSE
-        # distribution
-        if os.path.isabs(config):
-            mconf = config
-        elif config.startswith("."):
-            mconf = os.path.normpath(config)
-        else:
-            pcse_dir = os.path.dirname(__file__)
-            mconf = os.path.join(pcse_dir, "conf", config)
-        model_config_file = os.path.abspath(mconf)
-
-        # check that configuration file exists
-        if not os.path.exists(model_config_file):
-            msg = "PCSE model configuration file does not exist: %s" % model_config_file
-            raise exc.PCSEError(msg)
-        # store for later use
-        self.model_config_file = model_config_file
-
-        # Load file using execfile
-        try:
-            loc = {}
-            bytecode = compile(open(model_config_file).read(), model_config_file, 'exec')
-            exec(bytecode, {}, loc)
-        except Exception as e:
-            msg = "Failed to load configuration from file '%s' due to: %s"
-            msg = msg % (model_config_file, e)
-            raise exc.PCSEError(msg)
-
-        # Add the descriptive header for later use
-        if "__doc__" in loc:
-            desc = loc.pop("__doc__")
-            if len(desc) > 0:
-                self.description = desc
-                if self.description[-1] != "\n":
-                    self.description += "\n"
-
-        # Loop through the attributes in the configuration file
-        for key, value in list(loc.items()):
-            if key.isupper():
-                self.defined_attr.append(key)
-                setattr(self, key, value)
-
-        # Check for any missing compulsary attributes
-        req = set(self._required_attr)
-        diff = req.difference(set(self.defined_attr))
-        if diff:
-            msg = "One or more compulsary configuration items missing: %s" % list(diff)
-            raise exc.PCSEError(msg)
-
-    def __str__(self):
-        msg = "PCSE ConfigurationLoader from file:\n"
-        msg += "  %s\n\n" % self.model_config_file
-        if self.description is not None:
-            msg += ("%s Header of configuration file %s\n"% ("-"*20, "-"*20))
-            msg += self.description
-            if msg[-1] != "\n":
-                msg += "\n"
-            msg += ("%s Contents of configuration file %s\n"% ("-"*19, "-"*19))
-        for k in self.defined_attr:
-             r = "%s: %s" % (k, getattr(self, k))
-             msg += (textwrap.fill(r, subsequent_indent="  ") + "\n")
-        return msg
-
-
 def is_a_month(day):
     """Returns True if the date is on the last day of a month."""
 
@@ -814,7 +725,7 @@ def is_a_month(day):
         if day == datetime.date(day.year, day.month, 31):
             return True
     else:
-        if (day == datetime.date(day.year, day.month+1, 1) - \
+        if (day == datetime.date(day.year, day.month+1, 1) -
                    datetime.timedelta(days=1)):
             return True
     return False
@@ -910,24 +821,6 @@ def check_date(indate):
             raise KeyError(msg % indate)
 
 
-class DummySoilDataProvider(dict):
-    """This class is to provide some dummy soil parameters for potential production simulation.
-
-    Simulation of potential production levels is independent of the soil. Nevertheless, the model
-    does not some parameter values. This data provider provides some hard coded parameter values for
-    this situation.
-    """
-    _defaults = {"SMFCF":0.3,
-                 "SM0":0.4,
-                 "SMW":0.1,
-                 "RDMSOL":120,
-                 "CRAIRC":0.06,
-                 "K0":10.,
-                 "SOPE":10.,
-                 "KSUB":10.}
-
-    def __init__(self):
-        self.update(self._defaults)
 
 
 def version_tuple(v):
@@ -946,65 +839,6 @@ def version_tuple(v):
     return tuple(map(int, (v.split("."))))
 
 
-class WOFOST71SiteDataProvider(dict):
-    """Site data provider for WOFOST 7.1.
-
-    Site specific parameters for WOFOST 7.1 can be provided through this data provider as well as through
-    a normal python dictionary. The sole purpose of implementing this data provider is that the site
-    parameters for WOFOST are documented, checked and that sensible default values are given.
-
-    The following site specific parameter values can be set through this data provider::
-
-        - IFUNRN    Indicates whether non-infiltrating fraction of rain is a function of storm size (1)
-                    or not (0). Default 0
-        - NOTINF    Maximum fraction of rain not-infiltrating into the soil [0-1], default 0.
-        - SSMAX     Maximum depth of water that can be stored on the soil surface [cm]
-        - SSI       Initial depth of water stored on the surface [cm]
-        - WAV       Initial amount of water in total soil profile [cm]
-        - SMLIM     Initial maximum moisture content in initial rooting depth zone [0-1], default 0.4
-        - CO2       Atmospheric CO2 level (ppm), default 360.
-    """
-    
-    _defaults = {"IFUNRN": (0, {0, 1}, int),
-                 "NOTINF": (0, [0., 1.], float),
-                 "SSI": (0., [0., 100.], float),
-                 "SSMAX": (0., [0., 100.], float),
-                 "WAV": (None, [0., 100.], float),
-                 "SMLIM": (0.4, [0., 1.], float),
-                 "CO2": (360., [300., 1400.], float)}
-    _required = ["WAV"]
-
-    def __init__(self, **kwargs):
-        dict.__init__(self)
-        
-        for par_name, (default_value, par_range, par_conversion) in self._defaults.items():
-            if par_name not in kwargs:
-                # parameter was not provided, use the default if possible
-                if par_name in self._required:
-                    msg = "Value for parameter '%s' must be provided!" % par_name
-                    raise exc.PCSEError(msg)
-                else:
-                    v = default_value
-            else:
-                # parameter was provided, check value for type and range
-                v = par_conversion(kwargs.pop(par_name))
-                if isinstance(par_range, set):
-                    if v not in par_range:
-                        msg = "Value for parameter '%s' can only have values: %s" % (par_name, par_range)
-                        raise exc.PCSEError(msg)
-                else:
-                    if not (par_range[0] <= v <= par_range[1]):
-                        msg = "Value for parameter '%s' out of range %s-%s" % \
-                              (par_name, par_range[0], par_range[1])
-                        raise exc.PCSEError(msg)
-            self[par_name] = v
-
-        # Check if kwargs is empty
-        if kwargs:
-            msg = "Unknown parameter values provided to WOFOSTSiteDataProvider: %s" % kwargs
-            print(msg)
-
-
 def get_user_home():
     """A reasonable platform independent way to get the user home folder.
     If PCSE runs under a system user then return the temp directory as returned
@@ -1015,7 +849,7 @@ def get_user_home():
         user = os.getenv("USERNAME")
         if user is not None:
             user_home = os.path.expanduser("~")
-    elif platform.system() == "Linux":
+    elif platform.system() == "Linux" or platform.system() == "Darwin":
         user = os.getenv("USER")
         if user is not None:
             user_home = os.path.expanduser("~")
@@ -1028,3 +862,40 @@ def get_user_home():
         user_home = tempfile.gettempdir()
 
     return user_home
+
+
+class DotMap(dotmap.DotMap):
+    """DotMap subclass with _dynamic switched off by default.
+    """
+    def __init__(self, *args, **kwargs):
+        kwargs.update(_dynamic=False)
+        super().__init__(*args, **kwargs)
+
+
+class DummySoilDataProvider(dict):
+    """This class is to provide some dummy soil parameters for potential production simulation.
+
+    Simulation of potential production levels is independent of the soil. Nevertheless, the model
+    does not some parameter values. This data provider provides some hard coded parameter values for
+    this situation.
+    """
+    _defaults = {"SMFCF":0.3,
+                 "SM0":0.4,
+                 "SMW":0.1,
+                 "RDMSOL":120,
+                 "CRAIRC":0.06,
+                 "K0":10.,
+                 "SOPE":10.,
+                 "KSUB":10.}
+
+    def __init__(self):
+        print("Using this class from pcse.util is deprecated, use pcse.input.DummySoilDataProvider")
+        dict.__init__(self)
+        self.update(self._defaults)
+
+    def copy(self):
+        """
+        Overrides the inherited dict.copy method, which returns a dict.
+        This instead preserves the class and attributes like .header.
+        """
+        return copy.copy(self)

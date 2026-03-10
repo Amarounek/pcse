@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2014 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2014
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 """This module defines and describes the signals used by PCSE
 
 Signals are used by PCSE to notify components of events such as sowing,
@@ -72,17 +72,17 @@ following output::
     TypeError occurred: handle_mysignal() takes exactly 3 non-keyword arguments (1 given)
 
 Currently the following signals are used within PCSE with the following
-keywords.*
+keywords.
 
 **CROP_START**
 
- Indicates that a new crop cycle will start.
+ Indicates that a new crop cycle will start::
  
- self._send_signal(signal=signals.crop_start, day=<date>,
-                   crop_name=<string>, variety_name=<string>,
-                   crop_start_type=<string>, crop_end_type=<string>)
+     self._send_signal(signal=signals.crop_start, day=<date>,
+                       crop_name=<string>, variety_name=<string>,
+                       crop_start_type=<string>, crop_end_type=<string>)
 
- keyword arguments with signals.crop_start:
+ keyword arguments with `signals.crop_start`:
     
     * day: Current date
     * crop_name: a string identifying the crop
@@ -92,13 +92,13 @@ keywords.*
 
 **CROP_FINISH**
 
- Indicates that the current crop cycle is finished
+ Indicates that the current crop cycle is finished::
  
- self._send_signal(signal=signals.crop_finish, day=<date>,
-                   finish_type=<string>, crop_delete=<True|False>)
+     self._send_signal(signal=signals.crop_finish, day=<date>,
+                       finish_type=<string>, crop_delete=<True|False>)
 
-keyword arguments with signals.crop_finish:
-    
+keyword arguments with `signals.crop_finish`:
+
     * day: Current date
     * finish_type: string describing the reason for finishing the simulation, e.g.
       maturity, harvest, all leaves died, maximum duration reached, etc.
@@ -109,54 +109,85 @@ keyword arguments with signals.crop_finish:
 **TERMINATE**
  
  Indicates that the entire system should terminate (crop & soil water balance) and
- that terminal output should be collected.
+ that terminal output should be collected::
 
- self._send_signal(signal=signals.terminate)
+    self._send_signal(signal=signals.terminate)
 
  No keyword arguments are defined for this signal
 
 **OUTPUT**
 
- Indicates that the model state should be saved for later use.
+ Indicates that the model state should be saved for later use::
 
- self._send_signal(signal=signals.output)
+    self._send_signal(signal=signals.output)
  
  No keyword arguments are defined for this signal
+
 
 **SUMMARY_OUTPUT**
 
  Indicates that the model state should be saved for later use,
  SUMMARY_OUTPUT is only generated when a CROP_FINISH signal is
- received indicating that the crop simulation must finish.
+ received indicating that the crop simulation must finish::
 
- self._send_signal(signal=signals.output)
+    self._send_signal(signal=signals.output)
 
  No keyword arguments are defined for this signal
 
-**APPLY_NPK**
 
-Is used for application of Nitrate/Phosphate/Potassium (N/P/K) fertilizer
+**APPLY_N**
 
-self._send_signal(signal=signals.apply_npk, N_amount=<float>, P_amount=<float>, K_amount=<float>,
-                  N_recovery<float>, P_recovery=<float>, K_recovery=<float>)
+Is used for application of N fertilizer::
 
-Keyword arguments with signals.apply_npk:
+    self._send_signal(signal=signals.apply_n, N_amount=<float>, N_recovery<float>)
 
-    * N/P/K_amount: Amount of fertilizer in kg/ha applied on this day.
-    * N/P/K_recovery: Recovery fraction for the given type of fertilizer
+Keyword arguments with `signals.apply_n`:
+
+    * N_amount: Amount of fertilizer in kg/ha applied on this day.
+    * N_recovery: Recovery fraction for the given type of fertilizer
+
+
+**APPLY_N_SNOMIN**
+
+Is used for application of N fertilizer with the SNOMIN module::
+
+    self._send_signal(signal=signals.apply_n_snomin,amount=<float>, application_depth=<float>,
+                      cnratio=<float>, initial_age=<float>, f_NH4N=<float>, f_NO3N=<float>,
+                      f_orgmat=<float>)
+
+Keyword arguments with `signals.apply_n_snomin`:
+
+    * amount: Amount of material in amendment (kg material ha-1)
+    * application_depth: Depth over which the amendment is applied in the soil (cm)
+    * cnratio: C:N ratio of organic matter in material (kg C kg-1 N)
+    * initial_age: Initial apparent age of organic matter in material (year)
+    * f_NH4N: Fraction of NH4+-N in material (kg NH4+-N kg-1 material)
+    * f_NO3N: Fraction of NO3--N in material (kg NO3--N kg-1 material)
+    * f_orgmat: Fraction of organic matter in amendment (kg OM kg-1 material)
 
 
 **IRRIGATE**
 
-Is used for sending irrigation events.
+Is used for sending irrigation events::
 
-self._send_signal(signal=signals.irrigate, amount=<float>, efficiency=<float>)
+    self._send_signal(signal=signals.irrigate, amount=<float>, efficiency=<float>)
 
-Keyword arguments with signals.irrigate:
+Keyword arguments with `signals.irrigate`:
 
     * amount: Amount of irrigation in cm water applied on this day.
     * efficiency: efficiency of irrigation, meaning that the total amount of water that
       is added to the soil reservoir equals amount * efficiency
+
+
+**MOWING**
+
+Is used for sending mowing events used by the LINGRA/LINGRA-N models::
+
+    self._send_signal(signal=signals.mowing, biomass_remaining=<float>)
+
+Keyword arguments with `signals.mowing`:
+
+    * biomass_remaining: The amount of biomass remaining after mowing in kg/ha.
 
 
 .. _PyDispatcher: http://pydispatcher.sourceforge.net/
@@ -168,6 +199,7 @@ crop_finish = "CROP_FINISH"
 terminate = "TERMINATE"
 output = "OUTPUT"
 summary_output = "SUMMARY_OUTPUT"
-apply_npk = "APPLY_NPK"
 apply_n = "APPLY_N"
-irrigate = "IRRIGATE" 
+apply_n_snomin = "APPLY_N_SNOMIN"
+irrigate = "IRRIGATE"
+mowing = "MOWING"

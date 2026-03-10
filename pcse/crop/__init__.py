@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) 2004-2014 Alterra, Wageningen-UR
-# Allard de Wit (allard.dewit@wur.nl), April 2014
+# Copyright (c) 2004-2024 Wageningen Environmental Research, Wageningen-UR
+# Allard de Wit (allard.dewit@wur.nl), March 2024
 from . import abioticdamage
 from . import assimilation
 from . import evapotranspiration
@@ -12,3 +12,7 @@ from . import stem_dynamics
 from . import storage_organ_dynamics
 from . import leaf_dynamics
 from . import lintul3
+from . import lingra
+from . import lingraN
+from . import lingra_ndynamics
+from . import alcepas

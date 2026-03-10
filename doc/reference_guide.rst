@@ -1,5 +1,9 @@
 .. include:: abbreviations.txt
 
+###############
+Reference Guide
+###############
+
 An overview of PCSE
 ===================
 
@@ -45,7 +49,14 @@ forward by calling the SimulationObjects, calling the agromanagement
 unit, keeping track of time, providing the weather data needed and
 storing the model variables during the simulation for later output.
 The Engine itself is generic and can be used for any model that is defined
-in PCSE.
+in PCSE. The overall structure of the engine can be found in the figure below
+which shows the different elements that are called by the Engine.
+
+.. figure:: figures/PCSE_Engine_structure.png
+   :align: center
+   :width: 500 px
+
+
 
 .. _ContinuousSimulation:
 
@@ -129,28 +140,27 @@ Engine configuration files
 
 The engine needs a configuration file that specifies which components should
 be used for simulation and additional information. This is most easily
-explained by an example such as the configuration file for the WOFOST model
+explained by an example such as the configuration file for the WOFOST 7.2 model
 for potential crop production::
 
     # -*- coding: utf-8 -*-
-    # Copyright (c) 2004-2014 Alterra, Wageningen-UR
-    # Allard de Wit (allard.dewit@wur.nl), April 2014
-    """PCSE configuration file for WOFOST Potential Production simulation
-    in PCSE identical to the FORTRAN WOFOST 7.1
+    # Copyright (c) 2004-2021 Wageningen Environmental Research
+    # Allard de Wit (allard.dewit@wur.nl), August 2021
+    """PCSE configuration file for WOFOST 7.2 Potential Production simulation
 
     This configuration file defines the soil and crop components that
     should be used for potential production simulation.
     """
 
     from pcse.soil.classic_waterbalance import WaterbalancePP
-    from pcse.crop.wofost import Wofost
+    from pcse.crop.wofost72 import Wofost72
     from pcse.agromanager import AgroManager
 
     # Module to be used for water balance
     SOIL = WaterbalancePP
 
     # Module to be used for the crop simulation itself
-    CROP = Wofost
+    CROP = Wofost72
 
     # Module to use for AgroManagement actions
     AGROMANAGEMENT = AgroManager
@@ -172,12 +182,11 @@ for potential crop production::
     # Set to an empty list if you do not want any SUMMARY_OUTPUT
     SUMMARY_OUTPUT_VARS = ["DVS","LAIMAX","TAGP", "TWSO", "TWLV", "TWST",
                            "TWRT", "CTRAT", "RD", "DOS", "DOE", "DOA",
-                           "DOM", "DOH", "DOV"]
+                           "DOM", "DOH", "DOV", "CEVST"]
 
     # Summary variables to save at TERMINATE signals
     # Set to an empty list if you do not want any TERMINAL_OUTPUT
     TERMINAL_OUTPUT_VARS = []
-
 
 As you can see, the configuration file is written in plain python code.
 First of all, it defines the placeholders *SOIL*, *CROP* and
@@ -185,8 +194,9 @@ First of all, it defines the placeholders *SOIL*, *CROP* and
 the simulation of these processes. These placeholders simply point to
 the modules that were imported at the start of the configuration file.
 
-.. note: Modules must be imported using fully qualified names and relative
-         imports cannot be used.
+.. note::
+    Modules in configuration files must be imported using fully qualified
+    names and relative imports cannot be used.
 
 The second part is for defining the
 variables (*OUTPUT_VARS*) that should be stored during the model run
@@ -200,7 +210,7 @@ entire simulation (*TERMINAL_OUTPUT_VARS*).
     reside in the 'conf/' folder inside the package. When the Engine is started
     with the name of a configuration file, it searches this folder to locate the file.
     This implies that if you want the start the Engine with your own (modified)
-    configuration file, you *must* specify it as an absolute or relative path
+    configuration file, you *must* specify it as an absolute path
     otherwise the Engine will not find it.
 
 The relationship between models and the engine
@@ -217,7 +227,7 @@ the model details are not known beforehand.
 SimulationObjects
 =================
 
-PCSE  uses SimulationObjects to group parts of the crop simulation model
+PCSE uses SimulationObjects to group parts of the crop simulation model
 that form a logical entity into separate program code sections. In this
 way the crop simulation model is grouped into sections that implement certain
 biophysical processes such as phenology, assimilation, respiration, etc.
@@ -226,21 +236,22 @@ of an entire crop or a soil profile.
 
 This approach has several advantages:
 
-* Model code with a certain purpose is grouped together, making it easier
-  to read, understand and maintain.
-* A SimulationObject contains only parameters, rate and state variables
-  that are needed. In contrast, with monolythic code it is often unclear (at
-  first glance at least) what biophysical process they belong to.
-* Isolation of process implementations creates less dependencies, but more
-  importantly, dependencies are evident from the code which makes it easier
-  to modify individual SimulationObjects.
-* SimulationObjects can be tested individually by comparing output vs the
-  expected output (e.g. unit testing).
-* SimulationObjects can be exchanged for other objects with the same purpose
-  but a different biophysical approach. For example, the WOFOST assimilation
-  approach could be easily replaced by a more simple Light Use Efficiency or
-  Water Use Efficiency approach, by replacing the SimulationObject that
-  handles the |CO2| assimilation.
+#. Model code with a certain purpose is grouped together, making it easier
+   to read, understand and maintain.
+#. A SimulationObject contains only parameters, rate and state variables
+   that are needed. In contrast, with monolythic code it is often unclear (at
+   first glance at least) what biophysical process they belong to.
+#. Isolation of process implementations creates less dependencies, but more
+   importantly, dependencies are evident from the code which makes it easier
+   to modify individual SimulationObjects.
+#. SimulationObjects can be tested individually by comparing output vs the
+   expected output (e.g. unit testing).
+#. SimulationObjects can be exchanged for other objects with the same purpose
+   but a different biophysical approach. For example, the WOFOST assimilation
+   approach could be easily replaced by a more simple Light Use Efficiency or
+   Water Use Efficiency approach, by replacing the SimulationObject that
+   handles the |CO2| assimilation.
+
 
 Characteristics of SimulationObjects
 ------------------------------------
@@ -441,12 +452,12 @@ starting on 1999-08-01, the second starting on 2000-09-01 and the last campaign 
 on 2001-03-01. The first campaign consists of a crop calendar for winter-wheat starting
 with sowing at the given crop_start_date. During the campaign there are timed events for
 irrigation at 2000-05-25 and 2000-06-30. Moreover, there are state events for  fertilizer
-application (event_signal: apply_npk) given by development stage (DVS) at DVS 0.3, 0.6 and 1.12.
+application (event_signal: apply_n) given by development stage (DVS) at DVS 0.3, 0.6 and 1.12.
 
 The second campaign has no crop calendar, timed events or state events. This means that
 this is a period of bare soil with only the water balance running. The third campaign is
 for fodder maize sown at 2001-04-15 with two series of timed events (one for irrigation and
-one for N/P/K application) and no state events. The end date of the simulation in this case
+one for N application) and no state events. The end date of the simulation in this case
 will be 2001-11-01 (2001-04-15 + 200 days).
 
 An example of an agromanagement definition file::
@@ -469,15 +480,15 @@ An example of an agromanagement definition file::
             - 2000-05-25: {amount: 3.0, efficiency=0.7}
             - 2000-06-30: {amount: 2.5, efficiency=0.7}
         StateEvents:
-        -   event_signal: apply_npk
+        -   event_signal: apply_n
             event_state: DVS
             zero_condition: rising
-            name: DVS-based N/P/K application table
+            name: DVS-based N application table for the simple N balance
             comment: all fertilizer amounts in kg/ha
             events_table:
-            - 0.3: {N_amount : 1, P_amount: 3, K_amount: 4}
-            - 0.6: {N_amount: 11, P_amount: 13, K_amount: 14}
-            - 1.12: {N_amount: 21, P_amount: 23, K_amount: 24}
+            - 0.3: {N_amount : 1, N_recovery=0.7}
+            - 0.6: {N_amount: 11, N_recovery=0.7}
+            - 1.12: {N_amount: 21, N_recovery=0.7}
     - 2000-09-01:
         CropCalendar:
         TimedEvents:
@@ -500,12 +511,12 @@ An example of an agromanagement definition file::
             - 2001-07-21: {amount: 5.0, efficiency=0.7}
             - 2001-08-18: {amount: 3.0, efficiency=0.7}
             - 2001-09-19: {amount: 2.5, efficiency=0.7}
-        -   event_signal: apply_npk
-            name:  Timed N/P/K application table
+        -   event_signal: apply_n
+            name:  Timed N application table for the simple N balance
             comment: All fertilizer amounts in kg/ha
             events_table:
-            - 2001-05-25: {N_amount : 50, P_amount: 25, K_amount: 22}
-            - 2001-07-05: {N_amount : 70, P_amount: 35, K_amount: 32}
+            - 2001-05-25: {N_amount : 50, N_recovery=0.7}
+            - 2001-07-05: {N_amount : 70, N_recovery=0.7}
         StateEvents:
 
 Crop calendars
@@ -630,7 +641,7 @@ date::
         StateEvents:
 
 In the case that there is no harvest date provided and the crop runs till maturity, the end date from
-the crop calendar will be estimated as the crop_start_date plus the max_duration.
+the crop calendar will be estimated as the `crop_start_date` plus the `max_duration`.
 
 Note that in an agromanagement definition where the last campaign contains a definition for state events,
 a trailing empty campaign *must* be provided because otherwise the end date cannot be determined. The
@@ -756,7 +767,7 @@ signals of type `mysignal` having two arguments `arg1` and `arg2`. When the obje
 initialized and the `send_mysignal()` is called the handler will print out the values
 of its two arguments::
 
-    >>> from pcse.base_classes import VariableKiosk
+    >>> from pcse.base import VariableKiosk
     >>> from datetime import date
     >>> d = date(2000,1,1)
     >>> v = VariableKiosk()
@@ -773,23 +784,12 @@ package which is used to provide this functionality.
 
 
 
-Data providers in PCSE
-======================
-
-PCSE needs to receive inputs on weather, parameter values and agromanagement in order to carry out the
-simulation. To obtain the required inputs several data providers have been written that read
-these inputs from a variety of sources. Nevertheless, care has been taken to avoid dependencies on a particular
-database and file format. As a consequence there is no direct coupling between PCSE and a particular file format
-or database. This ensures that a variety of data sources can be used, ranging from simple files, relational
-databases and internet resources.
-
-.. _Weather data providers:
 
 Weather data in PCSE
---------------------
+====================
 
 Required weather variables
-..........................
+--------------------------
 
 To run the crop simulation, the engine needs meteorological variables that
 drive the processes that are being simulated. PCSE requires the following daily
@@ -828,7 +828,7 @@ TMINRA The 7-day running average of TMIN                          |C|
 
 
 How weather data is used in PCSE
-................................
+--------------------------------
 
 To provide the simulation Engine with weather data PCSE uses the concept of a
 `WeatherDataProvider` which can retrieve its weather data from various
@@ -839,7 +839,7 @@ weather data files provided in the Getting Started section
 data from an Excel file `nl1.xlsx` using the ExcelWeatherDataProvider::
 
     >>> import pcse
-    >>> from pcse.fileinput import ExcelWeatherDataProvider
+    >>> from pcse.input import ExcelWeatherDataProvider
     >>> wdp = ExcelWeatherDataProvider('nl1.xlsx')
 
 We can simply `print()` the weather data provider to get an overview of its contents::
@@ -925,8 +925,20 @@ or in the format YYYYDDD::
     Elevation (ELEV):    7.0 m.
 
 
-Weather data providers available in PCSE
-........................................
+Data providers in PCSE
+======================
+
+PCSE needs to receive inputs on weather, parameter values and agromanagement in order to carry out the
+simulation. To obtain the required inputs several data providers have been written that read
+these inputs from a variety of sources. Nevertheless, care has been taken to avoid dependencies on a particular
+database and file format. As a consequence there is no direct coupling between PCSE and a particular file format
+or database. This ensures that a variety of data sources can be used, ranging from simple files, relational
+databases and internet resources.
+
+.. _Weather data providers:
+
+Weather data providers
+----------------------
 
 PCSE provides several weather data providers out of the box. First of all, it includes file-based weather data providers
 that use an input file on disk to retrieve data. The :ref:`CABOWeatherDataProvider <CABOWeatherDataProvider>` and
@@ -935,27 +947,29 @@ the :ref:`ExcelWeatherDataProvider <ExcelWeatherDataProvider>` use the structure
 which is easier to handle than the ASCII files of the CABOWeatherDataProvider. Furthermore, a weather data provider
 is available that uses a simple CSV data format, :ref:`CSVWeatherDataProvider <CSVWeatherDataProvider>`.
 
-Second, there is a set of WeatherDataProviders that derive the weather data from the database tables
-implemented in the different versions of the `European Crop Growth Monitoring System`_ including a
-:ref:`CGMS8 <CGMS8tools>` database, a :ref:`CGMS12 <CGMS12tools>` database and
-a :ref:`CGMS14 <CGMS14tools>` database.
+Furthermore, the `OpenMeteo`_ company provides a free API (with limitations) to retrieve time-series of weather data
+for any given place on Earth. Historical data is based on ERA5, while forecasts are provided from several different
+providers including ECMWF. PCSE now includes the :ref:`OpenMeteoWeatherDataProvider <OpenMeteoWeatherDataProvider>`
+that can pull weather information from their API.
 
 Finally, there is the global weather data provided by the agroclimatology from the
-`NASA Power database`_ at a resolution of 1x1 degree. PCSE provides the
+`NASA Power database`_ at a resolution of 0.25x0.25 degree. PCSE provides the
 :ref:`NASAPowerWeatherDataProvider <NASAPowerWeatherDataProvider>` which retrieves
 the NASA Power data from the internet for a given latitude and longitude.
+
+
 
 .. _CABO Weather System: http://edepot.wur.nl/43010
 .. _NASA Power database: http://power.larc.nasa.gov
 .. _European Crop Growth Monitoring System: http://marswiki.jrc.ec.europa.eu/agri4castwiki/index.php/Weather_Monitoring
-
+.. _OpenMeteo: https://open-meteo.com/
 
 .. _Data providers for parameter values:
 
-Data providers for crop parameter values
-----------------------------------------
+Crop parameter values
+---------------------
 
-PCSE has a specific data provider for crop parameters: the YAMLCropDataprovider.
+PCSE has a specific data provider for crop parameters: the :ref:`YAMLCropDataprovider <YAMLCropDataprovider>`.
 The difference with the generic data providers is that
 this data provider can read and store the parameter sets for multiple
 crops while the generic data providers only can hold a single set.
@@ -967,13 +981,13 @@ The most basic use is to call YAMLCropDataProvider with no parameters. It will
 than pull the crop parameters from the github repository at
 https://github.com/ajwdewit/WOFOST_crop_parameters::
 
-    >>> from pcse.fileinput import YAMLCropDataProvider
+    >>> from pcse.input import YAMLCropDataProvider
     >>> p = YAMLCropDataProvider()
     >>> print(p)
     YAMLCropDataProvider - crop and variety not set: no activate crop parameter set!
 
-All crops and varieties have been loaded from the YAML file, however no activate
-crop has been set. Therefore, we need to activate a a particular crop and variety:
+All crops and varieties have been loaded from the github repository, however no active
+crop has been set. Therefore, we can activate a particular crop and variety:
 
     >>> p.set_active_crop('wheat', 'Winter_wheat_101')
     >>> print(p)
@@ -984,6 +998,23 @@ crop has been set. Therefore, we need to activate a a particular crop and variet
      ...
      ...
      'TSUM2': 1194, 'TSUM1': 543, 'TSUMEM': 120}
+
+In practice it is usually **not necessary to activate a crop parameter set manually** because the AgroManager
+can handle this. Defining an agromanagement definition with the proper `crop_name` and `variety_name` will
+automatically activate the crop/variety during the model simulation::
+
+    AgroManagement:
+    - 1999-08-01:
+        CropCalendar:
+            crop_name: wheat
+            variety_name: Winter_wheat_101
+            crop_start_date: 1999-09-15
+            crop_start_type: sowing
+            crop_end_date:
+            crop_end_type: maturity
+            max_duration: 300
+        TimedEvents:
+        StateEvents:
 
 Additionally, it is possible to load YAML parameter files from your local file system::
 
@@ -996,6 +1027,9 @@ the URL to that repository::
 
     >>> p = YAMLCropDataProvider(repository="https://raw.githubusercontent.com/<your_account>/WOFOST_crop_parameters/master/")
 
+Note that this URL should point to the location where the raw files can be found. In case of github, these URLs
+start with `https://raw.githubusercontent`, for other systems (e.g. gitlab) check the manual.
+
 To increase performance of loading parameters, the YAMLCropDataProvider will create a
 cache file that can be restored much quicker compared to loading the YAML files.
 When reading YAML files from the local file system, care is taken to ensure that the
@@ -1005,26 +1039,14 @@ and there is a risk that parameters are loaded from an outdated cache file. In t
 case use `force_reload=True` to force loading the parameters from the URL.
 
 
-Generic data providers for parameters
--------------------------------------
+Generic data providers
+----------------------
 
 PCSE provides several modules for retrieving parameter values for use in simulation models.
 The general concept that is used by all data providers for parameters is that they return a
 python dictionary object with the parameter names and values as key/value pairs. This concept
 is independent of the source where the parameters come from, either a file, a relational database or
-an internet source. It also means that parameters can be easily defined or changed on the command prompt,
-which is useful when iterating over loops and changing parameter files at each iteration.
-For example when showing the impact of a change in a crop parameter one could easily do::
-
-    >>> from pcse.fileinput import CABOFileReader
-    >>> import numpy as np
-    >>> cropfile = os.path.join(data_dir, 'sug0601.crop')
-    >>> cropdata = CABOFileReader(cropfile)
-    >>> TSUM1_values = np.arange(800, 1200, 25)
-    >>> for tsum1 in TSUM1_values:
-            cropdata["TSUM1"] = tsum1
-            # code needed to run the simulation goes here
-
+an internet source.
 
 PCSE provides two file-based data providers for reading parameters. The first one is the
 :ref:`CABOFileReader <CABOFileReader>` which reads parameter file in the CABO format that was
@@ -1032,11 +1054,8 @@ used to write parameter files for models in FORTRAN or FST. A more versatile rea
 :ref:`PCSEFileReader <PCSEFileReader>` which uses the python language itself as its syntax.
 This also implies that all the python syntax features can be used in PCSE parameter files.
 
-Finally, several data providers exist for retrieving crop, soil and site parameter values from the database
-of the Crop Growth Monitoring System including data providers for a
-:ref:`CGMS8 <CGMS8tools>` database,
-a :ref:`CGMS12 <CGMS12tools>` database and a :ref:`CGMS14 <CGMS14tools>`
-database.
+Encapsulating models parameters
+-------------------------------
 
 As described earlier, PCSE needs parameters to define the soil, the crop and and additional
 ancillary class of parameters called 'site'. Nevertheless, the different modules in PCSE have
@@ -1053,8 +1072,8 @@ for accessing names and values::
 
     >>> import os
     >>> import sqlalchemy as sa
-    >>> from pcse.fileinput import CABOFileReader, PCSEFileReader
-    >>> from pcse.base_classes import ParameterProvider
+    >>> from pcse.input import CABOFileReader, PCSEFileReader
+    >>> from pcse.base import ParameterProvider
     >>> from pcse.db.pcse import fetch_sitedata
     >>> import pcse.settings
 
@@ -1073,12 +1092,12 @@ for accessing names and values::
     >>> site = fetch_sitedata(db_metadata, grid=31031, year=2000)
 
     # Combine everything into one ParameterProvider object and print some values
-    >>> parprov = ParameterProvider(sitedata=site, soildata=soil, cropdata=crop)
-    >>> print(parprov["AMAXTB"]) # maximum leaf assimilation rate
+    >>> params = ParameterProvider(sitedata=site, soildata=soil, cropdata=crop)
+    >>> print(params["AMAXTB"]) # maximum leaf assimilation rate
     [0.0, 22.5, 1.0, 45.0, 1.13, 45.0, 1.8, 36.0, 2.0, 36.0]
-    >>> print(parprov["DRATE"])  # maximum soil drainage rate
+    >>> print(params["DRATE"])  # maximum soil drainage rate
     30.0
-    >>> print(parprov["WAV"])  # site-specific initial soil water amount
+    >>> print(params["WAV"])  # site-specific initial soil water amount
     10.0
 
 
@@ -1096,11 +1115,9 @@ described in the section above on  :ref:`defining agromanagement <refguide_agrom
 this datastructure the :ref:`YAMLAgroManagementReader <YAMLAgroManagementReader>` module is available
 which can be provided directly as input into the Engine.
 
-For reading Agromanagement input from a CGMS database see the sections on the database tools for
-a :ref:`CGMS8 <CGMS8tools>` database, a :ref:`CGMS12 <CGMS12tools>` database and
-a :ref:`CGMS14 <CGMS14tools>` database. Note that the support for defining agromanagement
-in CGMS databases is limited to crop calendars only. The CGMS database has no support for defining state and
-timed events yet.
+For reading Agromanagement input from a CGMS database see the sections on the database tools CGMS.
+Note that the support for defining agromanagement in CGMS databases is limited to crop calendars only.
+The CGMS database has no support for defining state and timed events yet.
 
 
 Global PCSE settings
@@ -1132,3 +1149,4 @@ Within PCSE all settings can be easily accessed by importing the settings module
     'C:\\Users\\wit015\\.pcse'
     >>> pcse.settings.METEO_CACHE_DIR
     'C:\\Users\\wit015\\.pcse\\meteo_cache'
+

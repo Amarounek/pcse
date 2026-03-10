@@ -1,18 +1,16 @@
-***************
 Getting started
-***************
+===============
 
 This guide will help you install PCSE as well as provide
 some examples to get you started with modelling. The examples are currently focused on applying
-the WOFOST and LINTUL3 crop simulation models, although other crop simulations may become available within
+the WOFOST and LINTUL3 crop simulation models, although other crop simulation models may become available within
 PCSE in the future.
 
-Note that an these examples plus demonstrations of advanced topics are also available as Jupyter
-notebooks at https://github.com/ajwdewit/pcse_notebooks
+Note that the examples below are also available as Jupyter notebooks on my github page: https://github.com/ajwdewit/pcse_notebooks
 
 
 An interactive PCSE/WOFOST session
-==================================
+----------------------------------
 
 The easiest way to demonstrate PCSE is to import WOFOST from PCSE and run it from
 an interactive Python session. We will be using the `start_wofost()` script that
@@ -20,14 +18,15 @@ connects to a the demo database which contains meteorologic data, soil data,
 crop data and management data for a grid location in South-Spain.
 
 Initializing PCSE/WOFOST and advancing model state
---------------------------------------------------
-Let's start a WOFOST object for modelling winter-wheat (crop=1) on a
-location in South-Spain (grid 31031) for the year 2000 under water-limited
-conditions for a freely draining soil (mode='wlp')::
+..................................................
 
-    >>> wofost_object = pcse.start_wofost(grid=31031, crop=1, year=2000, mode='wlp')
+Let's start a WOFOST object for modelling winter-wheat on a
+location in South-Spain for the year 2000 under water-limited
+conditions.::
+
+    >>> wofost_object = pcse.start_wofost()
     >>> type(wofost_object)
-    <class 'pcse.models.Wofost71_WLP_FD'>
+    <class 'pcse.models.Wofost72_WLP_CWB'>
 
 You have just successfully initialized a PCSE/WOFOST object in the Python
 interpreter, which is in its initial state and waiting to do some simulation. We
@@ -41,7 +40,7 @@ number of days to simulate can be specified as well::
     >>> wofost_object.run(days=10)
 
 Getting information about state and rate variables
---------------------------------------------------
+..................................................
 Retrieving information about the calculated model states or rates 
 can be done with the `get_variable()` method on a PCSE object.
 For example, to retrieve the leaf area index value in the current
@@ -102,7 +101,7 @@ and have a look at these as well::
       'TWST': 5052.578254982587}]
 
 Running PCSE/WOFOST with custom input data
-==========================================
+------------------------------------------
 
 For running PCSE/WOFOST (and PCSE models in general) with your own data sources you need three different types of
 inputs:
@@ -129,7 +128,7 @@ First we will import the necessary modules and define the data directory::
     >>> data_dir = r'D:\userdata\pcse_examples'
 
 Crop parameters
----------------
+...............
 
 The crop parameters consist of parameter names and the
 corresponding parameter values that are needed to parameterize the
@@ -147,7 +146,7 @@ tries to be backward compatible as much as possible and provides the
 :ref:`CABOFileReader <CABOFileReader>` for reading parameter files in CABO format.
 the CABOFileReader returns a dictionary with the parameter name/value pairs::
 
-    >>> from pcse.fileinput import CABOFileReader
+    >>> from pcse.input import CABOFileReader
     >>> cropfile = os.path.join(data_dir, 'sug0601.crop')
     >>> cropdata = CABOFileReader(cropfile)
     >>> print(cropdata)
@@ -156,7 +155,7 @@ Printing the cropdata dictionary gives you a listing of the header and
 all parameters and their values.
 
 Soil parameters
----------------
+...............
 
 The soildata dictionary provides the parameter name/value pairs related
 to the soil type and soil physical properties. The number of parameters is
@@ -169,7 +168,7 @@ This file is also taken from the soil files in the `WOFOST Control Centre`_ ::
     >>> soildata = CABOFileReader(soilfile)
 
 Site parameters
----------------
+...............
 
 The site parameters provide ancillary parameters that are not related to
 the crop or the soil. Examples are the initial conditions of
@@ -178,13 +177,13 @@ the initial and maximum surface storage (SSI, SSMAX). Also the
 atmospheric CO2 concentration is a typical site parameter.
 For the moment, we can define these parameters directly on the Python commandline
 as a simple python dictionary. However, it is more convenient to use the
-:ref:`WOFOST71SiteDataProvider <WOFOST71SiteDataProvider>` that documents the
+:ref:`WOFOST72SiteDataProvider <WOFOST72SiteDataProvider>` that documents the
 site parameters and provides sensible defaults::
 
-    >>> from pcse.util import WOFOST71SiteDataProvider
-    >>> sitedata = WOFOST71SiteDataProvider(WAV=100, CO2=360)
+    >>> from pcse.input import WOFOST72SiteDataProvider
+    >>> sitedata = WOFOST72SiteDataProvider(WAV=100)
     >>> print(sitedata)
-    {'SMLIM': 0.4, 'NOTINF': 0, 'CO2': 360.0, 'SSI': 0.0, 'SSMAX': 0.0, 'IFUNRN': 0, 'WAV': 100.0}
+    {'SMLIM': 0.4, 'NOTINF': 0, 'SSI': 0.0, 'SSMAX': 0.0, 'IFUNRN': 0, 'WAV': 100.0}
 
 Finally, we need to pack the different sets of parameters into one variable
 using the `ParameterProvider`. This is needed because PCSE expects one
@@ -196,7 +195,7 @@ of running multiple simulations with slightly different parameter values::
      >>> parameters = ParameterProvider(cropdata=cropdata, soildata=soildata, sitedata=sitedata)
 
 AgroManagement
---------------
+..............
 
 The agromanagement inputs provide the start date of the agricultural campaign,
 the start_date/start_type of the crop simulation, the end_date/end_type of the crop
@@ -209,7 +208,7 @@ to easily create more complex structures which is needed for defining the agroma
 The agromanagement file for sugar beet in Wageningen `sugarbeet_calendar.agro` can be read with
 the :ref:`YAMLAgroManagementReader <YAMLAgroManagementReader>`::
 
-    >>> from pcse.fileinput import YAMLAgroManagementReader
+    >>> from pcse.input import YAMLAgroManagementReader
     >>> agromanagement_file = os.path.join(data_dir, 'sugarbeet_calendar.agro')
     >>> agromanagement = YAMLAgroManagementReader(agromanagement_file)
     >>> print(agromanagement)
@@ -228,7 +227,7 @@ the :ref:`YAMLAgroManagementReader <YAMLAgroManagementReader>`::
          TimedEvents: null
 
 Daily weather observations
---------------------------
+..........................
 
 Daily weather variables are needed for running the simulation. There are several
 data providers in PCSE for reading weather data, see the section on
@@ -240,21 +239,21 @@ We will retrieve the data from the Power database for the location of Wageningen
 Note that it can take around 30 seconds
 to retrieve the weather data from the NASA Power server the first time::
 
-    >>> from pcse.db import NASAPowerWeatherDataProvider
+    >>> from pcse.input import NASAPowerWeatherDataProvider
     >>> wdp = NASAPowerWeatherDataProvider(latitude=52, longitude=5)
     >>> print(wdp)
     Weather data provided by: NASAPowerWeatherDataProvider
     --------Description---------
-    NASA/POWER SRB/FLASHFlux/MERRA2/GEOS 5.12.4 (FP-IT) 0.5 x 0.5 Degree Daily Averaged Data
+    NASA/POWER CERES/MERRA2 Native Resolution Daily Data
     ----Site characteristics----
-    Elevation:    4.7
+    Elevation:    3.5
     Latitude:  52.000
     Longitude:  5.000
-    Data available for 1983-07-01 - 2018-09-16
-    Number of missing days: 8
+    Data available for 1984-01-01 - 2024-03-20
+    Number of missing days: 0
 
 Importing, initializing and running a PCSE model
-------------------------------------------------
+................................................
 
 Internally, PCSE uses a simulation `engine` to run a crop simulation. This
 engine takes a configuration file that specifies the components for the crop,
@@ -266,11 +265,11 @@ data and agromanagement.
 However, as many users of PCSE only need a particular configuration (for
 example the WOFOST model for potential production), preconfigured Engines
 are provided in `pcse.models`. For the sugarbeet example we will import
-the WOFOST model for water-limited simulation under freely draining soil
-conditions::
+the WOFOST model for water-limited simulation using the classic waterbalance.
+The latter simulates the soil water dynamics assuming a freely draining soil::
 
-    >>> from pcse.models import Wofost71_WLP_FD
-    >>> wofsim = Wofost71_WLP_FD(parameters, wdp, agromanagement)
+    >>> from pcse.models import Wofost72_WLP_CWB
+    >>> wofsim = Wofost72_WLP_CWB(parameters, wdp, agromanagement)
 
 We can then run the simulation and show some final results such as the anthesis and
 harvest dates (DOA, DOH), total biomass (TAGP) and maximum LAI (LAIMAX).
@@ -313,7 +312,7 @@ script for this examples can be downloaded here :download:`downloads/quickstart_
 .. _RunningLINTUL3:
 
 Running a simulation with PCSE/LINTUL3
-======================================
+--------------------------------------
 
 The LINTUL model (Light INTerception and UtiLisation) is a simple generic crop model, which simulates dry
 matter production as the result of light interception and utilization with a constant light use efficiency.
@@ -343,11 +342,11 @@ Similar to the previous example, for running the PCSE/LINTUL3 model we need to d
 (parameters, weather data and agromanagement).
 
 Reading model parameters
-------------------------
+........................
 Model parameters can be easily read from the input files using the `PCSEFileReader` as we have seen
 in the previous example::
 
-    >>> from pcse.fileinput import PCSEFileReader
+    >>> from pcse.input import PCSEFileReader
     >>> crop = PCSEFileReader(os.path.join(data_dir, "lintul3_springwheat.crop"))
     >>> soil = PCSEFileReader(os.path.join(data_dir, "lintul3_springwheat.soil"))
     >>> site = PCSEFileReader(os.path.join(data_dir, "lintul3_springwheat.site"))
@@ -359,12 +358,12 @@ However, PCSE models expect a single set of parameters and therefore they need t
     >>> parameterprovider = ParameterProvider(soildata=soil, cropdata=crop, sitedata=site)
 
 Reading weather data
---------------------
+....................
 For reading weather data we will use the ExcelWeatherDataProvider. This WeatherDataProvider uses nearly the same
 file format as is used for the CABO weather files but stores its data in an MicroSoft Excel file which makes the
 weather files easier to create and update::
 
-    >>> from pcse.fileinput import ExcelWeatherDataProvider
+    >>> from pcse.input import ExcelWeatherDataProvider
     >>> weatherdataprovider = ExcelWeatherDataProvider(os.path.join(data_dir, "nl1.xlsx"))
     >>> print(weatherdataprovider)
     Weather data provided by: ExcelWeatherDataProvider
@@ -383,7 +382,7 @@ weather files easier to create and update::
     Number of missing days: 32
 
 Defining agromanagement
------------------------
+.......................
 Defining agromanagement needs a bit more explanation because agromanagement is a relatively
 complex piece of PCSE. The agromanagement definition for PCSE is written in a format called `YAML`_ and
 for the current example looks like this:
@@ -427,7 +426,7 @@ Reference Guide (Chapter 3).
 
 Loading the agromanagement definition must by done with the YAMLAgroManagementReader::
 
-    >>> from pcse.fileinput import YAMLAgroManagementReader
+    >>> from pcse.input import YAMLAgroManagementReader
     >>> agromanagement = YAMLAgroManagementReader(os.path.join(data_dir, "lintul3_springwheat.amgt"))
     >>> print(agromanagement)
     !!python/object/new:pcse.fileinput.yaml_agro_loader.YAMLAgroManagementReader
@@ -456,7 +455,7 @@ Loading the agromanagement definition must by done with the YAMLAgroManagementRe
 
 
 Starting and running the LINTUL3 model
---------------------------------------
+......................................
 We have now all parameters, weather data and agromanagement information available to start the LINTUL3 model::
 
     >>> from pcse.models import LINTUL3
